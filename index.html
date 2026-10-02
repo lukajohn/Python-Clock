@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070812">
+  <meta name="description" content="A cinematic neon binary clock with a precision digital readout.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>Clock Experiment — Binary Time</title>
+  <style>
+    :root{
+      --bg:#050611;
+      --panel:rgba(10,12,28,.68);
+      --panel-strong:rgba(10,13,35,.88);
+      --text:#eef2ff;
+      --muted:#8b93b7;
+      --accent:#8b5cf6;
+      --accent-2:#22d3ee;
+      --accent-3:#ec4899;
+      --hot:#f8fafc;
+      --edge:rgba(139,92,246,.25);
+      --shadow:0 0 35px rgba(139,92,246,.14), inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    [data-theme="aurora"]{--accent:#22d3ee;--accent-2:#67e8f9;--accent-3:#a78bfa;--edge:rgba(34,211,238,.25);--shadow:0 0 35px rgba(34,211,238,.15),inset 0 1px 0 rgba(255,255,255,.03)}
+    [data-theme="ember"]{--accent:#fb7185;--accent-2:#f59e0b;--accent-3:#fde68a;--edge:rgba(251,113,133,.23);--shadow:0 0 35px rgba(251,113,133,.15),inset 0 1px 0 rgba(255,255,255,.03)}
+    [data-theme="void"]{--accent:#a3e635;--accent-2:#22c55e;--accent-3:#14b8a6;--edge:rgba(163,230,53,.2);--shadow:0 0 35px rgba(34,197,94,.14),inset 0 1px 0 rgba(255,255,255,.03)}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      overflow-x:hidden;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 50% -10%, color-mix(in srgb,var(--accent) 18%,transparent),transparent 42%),
+        radial-gradient(circle at 15% 75%, color-mix(in srgb,var(--accent-2) 10%,transparent),transparent 35%),
+        var(--bg);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      transition:background .5s ease;
+    }
+    canvas#space{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+    .noise,.scanlines{position:fixed;inset:0;pointer-events:none;z-index:2}
+    .noise{opacity:.035;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='130' viewBox='0 0 130 130'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E")}
+    .scanlines{background:repeating-linear-gradient(to bottom,rgba(255,255,255,.018) 0,rgba(255,255,255,.018) 1px,transparent 2px,transparent 5px);mix-blend-mode:soft-light;opacity:.4}
+    .shell{position:relative;z-index:3;min-height:100%;display:grid;place-items:center;padding:28px}
+    .app{width:min(1180px,100%);display:grid;gap:18px}
+    .topbar,.panel{
+      background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.018)),var(--panel);
+      border:1px solid var(--edge);
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(20px);
+      -webkit-backdrop-filter:blur(20px);
+    }
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 16px;border-radius:20px}
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}
+    .brandmark{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:radial-gradient(circle at 30% 30%,var(--hot),var(--accent) 26%,transparent 62%),linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.01));box-shadow:0 0 24px color-mix(in srgb,var(--accent) 55%,transparent)}
+    .brandmark span{width:8px;height:8px;border-radius:50%;background:var(--hot);box-shadow:0 0 15px var(--hot)}
+    .brand-copy{min-width:0}
+    .brand-title{font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:.86rem}
+    .brand-sub{font-size:.72rem;color:var(--muted);margin-top:2px}
+    .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    button{font:inherit;color:var(--text)}
+    .chip,.icon-btn{
+      border:1px solid rgba(255,255,255,.09);
+      background:rgba(255,255,255,.035);
+      border-radius:999px;
+      padding:9px 12px;
+      cursor:pointer;
+      transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;
+    }
+    .chip:hover,.icon-btn:hover{transform:translateY(-1px);border-color:var(--edge);background:rgba(255,255,255,.07);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+    .chip.active{border-color:var(--accent);box-shadow:0 0 18px color-mix(in srgb,var(--accent) 25%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+    .theme-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:0;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+    .hero{
+      display:grid;
+      grid-template-columns:minmax(0,1.65fr) minmax(290px,.8fr);
+      gap:18px;
+    }
+    .panel{border-radius:24px}
+    .display{padding:26px;position:relative;overflow:hidden}
+    .display::before{content:"";position:absolute;inset:-20%;background:conic-gradient(from 0deg,transparent 0 20%,color-mix(in srgb,var(--accent) 10%,transparent) 25%,transparent 35%,color-mix(in srgb,var(--accent-2) 10%,transparent) 48%,transparent 63%,color-mix(in srgb,var(--accent-3) 9%,transparent) 77%,transparent 88%);filter:blur(30px);animation:spin 18s linear infinite;z-index:0}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .display>*{position:relative;z-index:1}
+    .eyebrow{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.18em;color:var(--muted);font-size:.7rem}
+    .digital-wrap{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-top:12px}
+    .digital{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(3.2rem,10vw,7.4rem);font-weight:800;letter-spacing:-.07em;line-height:.95;text-shadow:0 0 28px color-mix(in srgb,var(--accent) 35%,transparent)}
+    .ampm{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent-2);font-weight:800;letter-spacing:.12em;font-size:1rem;padding-bottom:.55rem;min-width:40px}
+    .date-line{display:flex;align-items:center;gap:10px;margin-top:14px;color:var(--muted);font-size:.9rem}
+    .status{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.16)}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 12px #22c55e;transition:background .2s ease,box-shadow .2s ease}
+    .status.paused .status-dot{background:#f59e0b;box-shadow:0 0 12px #f59e0b}
+    .binary-panel{padding:24px}
+    .binary-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+    .binary-title{font-weight:700;margin-top:4px}
+    .binary-note{font-size:.74rem;color:var(--muted);text-align:right}
+    .binary-board{display:grid;grid-template-columns:repeat(6,minmax(46px,1fr));gap:12px;margin-top:24px}
+    .digit-col{display:grid;gap:9px;justify-items:center}
+    .digit-label{font:700 .65rem ui-monospace,monospace;color:var(--muted);letter-spacing:.16em}
+    .bit-wrap{display:grid;justify-items:center;gap:4px}
+    .led{
+      width:clamp(32px,4.7vw,50px);
+      aspect-ratio:1;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.08);
+      background:radial-gradient(circle at 38% 35%,rgba(255,255,255,.07),rgba(255,255,255,.025) 35%,rgba(0,0,0,.2) 70%);
+      box-shadow:inset 0 1px 4px rgba(0,0,0,.6),0 2px 7px rgba(0,0,0,.2);
+      position:relative;
+      transition:transform .16s ease,background .16s ease,box-shadow .16s ease,border-color .16s ease;
+    }
+    .led::after{content:"";position:absolute;inset:23%;border-radius:50%;background:transparent;opacity:0;transition:opacity .16s ease,box-shadow .16s ease}
+    .led.on{transform:scale(1.03);border-color:color-mix(in srgb,var(--accent) 70%,white 5%);background:radial-gradient(circle at 38% 35%,#fff,color-mix(in srgb,var(--accent) 76%,white 5%) 18%,color-mix(in srgb,var(--accent) 24%,transparent) 66%,rgba(0,0,0,.08));box-shadow:0 0 12px color-mix(in srgb,var(--accent) 52%,transparent),0 0 30px color-mix(in srgb,var(--accent) 21%,transparent),inset 0 0 10px rgba(255,255,255,.15)}
+    .led.on::after{opacity:1;background:var(--hot);box-shadow:0 0 8px 2px var(--hot),0 0 20px 5px var(--accent)}
+    .bit-value{font:600 .6rem ui-monospace,monospace;color:var(--muted)}
+    .side{display:grid;gap:18px}
+    .metric{padding:22px;min-height:0}
+    .metric-title{font-size:.78rem;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+    .ring{width:154px;aspect-ratio:1;border-radius:50%;margin:17px auto 8px;display:grid;place-items:center;background:conic-gradient(var(--accent) var(--progress),rgba(255,255,255,.06) 0);position:relative;box-shadow:0 0 30px color-mix(in srgb,var(--accent) 18%,transparent)}
+    .ring::before{content:"";position:absolute;inset:12px;border-radius:50%;background:var(--panel-strong);border:1px solid rgba(255,255,255,.05)}
+    .ring-inner{position:relative;text-align:center}
+    .ring-number{font:800 2.4rem ui-monospace,monospace}
+    .ring-unit{color:var(--muted);font-size:.7rem}
+    .timezone{display:flex;justify-content:space-between;gap:10px;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);font:600 .76rem ui-monospace,monospace;color:var(--muted)}
+    .timezone strong{color:var(--text);font-weight:600}
+    .ticker{padding:18px 22px}
+    .ticker-line{font:500 .78rem ui-monospace,monospace;color:var(--muted);word-break:break-all;line-height:1.8}
+    .ticker-line b{color:var(--accent-2)}
+    .footer{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.72rem;padding:0 4px}
+    .footer kbd{font:600 .65rem ui-monospace,monospace;padding:4px 6px;border:1px solid rgba(255,255,255,.08);border-bottom-color:rgba(255,255,255,.16);border-radius:6px;background:rgba(255,255,255,.025)}
+    .divider{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);margin:2px 0}
+    .pulse{animation:pulse .55s ease}
+    @keyframes pulse{0%{filter:brightness(1)}35%{filter:brightness(1.35)}100%{filter:brightness(1)}}
+    @media (max-width:850px){.hero{grid-template-columns:1fr}.binary-board{gap:8px}.topbar{align-items:flex-start;flex-direction:column}.controls{justify-content:flex-start}}
+    @media (max-width:520px){.shell{padding:12px}.display,.binary-panel,.metric{padding:18px}.binary-board{gap:5px}.led{width:34px}.binary-note{display:none}.footer{align-items:flex-start;flex-direction:column}.digital-wrap{align-items:flex-end}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}.scanlines{display:none}}
+  </style>
+</head>
+<body data-theme="cyber">
+<canvas id="space" aria-hidden="true"></canvas>
+<div class="noise" aria-hidden="true"></div>
+<div class="scanlines" aria-hidden="true"></div>
+
+<div class="shell">
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brandmark" aria-hidden="true"><span></span></div>
+        <div class="brand-copy">
+          <div class="brand-title">Clock Experiment</div>
+          <div class="brand-sub">binary time laboratory // live local clock</div>
+        </div>
+      </div>
+      <div class="controls" aria-label="Clock controls">
+        <button class="chip active" data-theme-btn="cyber"><span class="theme-dot"></span>Cyber</button>
+        <button class="chip" data-theme-btn="aurora"><span class="theme-dot"></span>Aurora</button>
+        <button class="chip" data-theme-btn="ember"><span class="theme-dot"></span>Ember</button>
+        <button class="chip" data-theme-btn="void"><span class="theme-dot"></span>Void</button>
+        <button class="icon-btn" id="formatBtn" title="Toggle 12/24 hour format">24H</button>
+        <button class="icon-btn" id="pauseBtn" title="Pause or resume clock">Ⅱ</button>
+        <button class="icon-btn" id="fullBtn" title="Toggle fullscreen">⛶</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <article class="panel display" id="displayPanel">
+        <div class="eyebrow">SYSTEM CLOCK / PRIMARY READOUT</div>
+        <div class="digital-wrap">
+          <div>
+            <div class="digital" id="digital">00:00:00</div>
+            <div class="date-line">
+              <span id="date">Thursday, January 1</span>
+              <span class="status" id="status"><span class="status-dot"></span><span id="statusText">LIVE</span></span>
+            </div>
+          </div>
+          <div class="ampm" id="ampm"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="binary-panel" style="padding:22px 0 0;background:none;border:0;box-shadow:none">
+          <div class="binary-head">
+            <div>
+              <div class="eyebrow">BINARY MATRIX</div>
+              <div class="binary-title">Every digit translated to base-2.</div>
+            </div>
+            <div class="binary-note">MSB → LSB<br>top → bottom</div>
+          </div>
+          <div class="binary-board" id="board"></div>
+        </div>
+      </article>
+
+      <aside class="side">
+        <section class="panel metric">
+          <div class="metric-title">Second phase</div>
+          <div class="ring" id="ring" style="--progress:0deg">
+            <div class="ring-inner">
+              <div class="ring-number" id="secNumber">00</div>
+              <div class="ring-unit">SECONDS</div>
+            </div>
+          </div>
+          <div class="timezone"><span>LOCAL ZONE</span><strong id="tz">—</strong></div>
+          <div class="timezone"><span>UTC OFFSET</span><strong id="offset">—</strong></div>
+        </section>
+
+        <section class="panel ticker">
+          <div class="metric-title">Epoch stream</div>
+          <div class="ticker-line" id="epoch">00000000000000000000000000000000</div>
+          <div class="ticker-line">unix seconds: <b id="unix">0</b></div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <span>Built as a tiny study in time, light &amp; unnecessarily dramatic interface design.</span>
+      <span><kbd>SPACE</kbd> pause · <kbd>F</kbd> fullscreen · <kbd>M</kbd> 12/24H · <kbd>T</kbd> theme</span>
+    </footer>
+  </main>
+</div>
+
+<script>
+(() => {
+  const board = document.getElementById('board');
+  const digital = document.getElementById('digital');
+  const ampm = document.getElementById('ampm');
+  const dateEl = document.getElementById('date');
+  const secNumber = document.getElementById('secNumber');
+  const ring = document.getElementById('ring');
+  const tz = document.getElementById('tz');
+  const offset = document.getElementById('offset');
+  const epoch = document.getElementById('epoch');
+  const unix = document.getElementById('unix');
+  const panel = document.getElementById('displayPanel');
+  const status = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+  const formatBtn = document.getElementById('formatBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  let use24 = true;
+  let paused = false;
+  let frozenMs = null;
+  let themeIndex = 0;
+  const themes = ['cyber','aurora','ember','void'];
+
+  function makeBoard() {
+    const labels = ['H1','H2','M1','M2','S1','S2'];
+    board.innerHTML = labels.map((label, col) =>
+      '<div class="digit-col" aria-label="' + label + ' digit">' +
+        '<div class="digit-label">' + label + '</div>' +
+        [8,4,2,1].map(bit =>
+          '<div class="bit-wrap"><div class="led" data-col="' + col + '" data-bit="' + bit + '" title="bit ' + bit + '"></div><div class="bit-value">2^' + Math.log2(bit) + '</div></div>'
+        ).join('') +
+      '</div>'
+    ).join('');
+  }
+
+  // The board is arranged as pairs of LEDs and labels per digit.
+  // Keep the LEDs addressed in row order (8,4,2,1).
+  function updateBoard(timeDigits) {
+    const leds = board.querySelectorAll('.led');
+    leds.forEach(led => {
+      const col = Number(led.dataset.col);
+      const bit = Number(led.dataset.bit);
+      const on = (Number(timeDigits[col]) & bit) !== 0;
+      led.classList.toggle('on', on);
+      led.setAttribute('aria-label', labelFor(on, bit));
+    });
+  }
+
+  function labelFor(on, bit){ return (on ? 'active ' : 'inactive ') + 'bit ' + bit; }
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function getOffsetString(date) {
+    const mins = -date.getTimezoneOffset();
+    const sign = mins >= 0 ? '+' : '-';
+    const abs = Math.abs(mins);
+    return 'UTC' + sign + pad(Math.floor(abs/60)) + ':' + pad(abs % 60);
+  }
+
+  function tick(nowOverride) {
+    const now = paused && frozenMs !== null ? new Date(frozenMs) : new Date(nowOverride ?? Date.now());
+    let h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    let displayH = h;
+    if (!use24) {
+      displayH = h % 12 || 12;
+      ampm.textContent = h >= 12 ? 'PM' : 'AM';
+    } else {
+      ampm.textContent = '';
+    }
+    const timeDigits = [Math.floor(displayH/10),displayH%10,Math.floor(m/10),m%10,Math.floor(s/10),s%10];
+    digital.textContent = use24 ? `${pad(displayH)}:${pad(m)}:${pad(s)}` : `${pad(displayH)}:${pad(m)}:${pad(s)}`;
+    dateEl.textContent = new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(now);
+    secNumber.textContent = pad(s);
+    ring.style.setProperty('--progress', ((s + now.getMilliseconds()/1000) / 60 * 360) + 'deg');
+    tz.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+    offset.textContent = getOffsetString(now);
+    unix.textContent = Math.floor(now.getTime()/1000).toString();
+    epoch.textContent = Math.floor(now.getTime()/1000).toString(2).padStart(32,'0');
+    updateBoard(timeDigits.map(String));
+    panel.classList.remove('pulse');
+    void panel.offsetWidth;
+    panel.classList.add('pulse');
+    status.classList.toggle('paused',paused);
+    statusText.textContent = paused ? 'PAUSED' : 'LIVE';
+    pauseBtn.textContent = paused ? '▶' : 'Ⅱ';
+  }
+
+  function setPaused(value) {
+    paused = value;
+    if (paused) frozenMs = Date.now();
+    else frozenMs = null;
+    tick();
+  }
+
+  makeBoard();
+  tick();
+
+  setInterval(() => { if (!paused) tick(); }, 200);
+  setInterval(() => {
+    if (!paused) tick();
+  }, 1000);
+
+  formatBtn.addEventListener('click', () => {
+    use24 = !use24;
+    formatBtn.textContent = use24 ? '24H' : '12H';
+    tick();
+  });
+  pauseBtn.addEventListener('click', () => setPaused(!paused));
+
+  document.getElementById('fullBtn').addEventListener('click', async () => {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch {}
+  });
+
+  document.querySelectorAll('[data-theme-btn]').forEach((btn,i) => {
+    btn.addEventListener('click', () => {
+      document.body.dataset.theme = btn.dataset.themeBtn;
+      document.querySelectorAll('[data-theme-btn]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      themeIndex = i;
+    });
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
+    if (e.key.toLowerCase() === 'f') document.getElementById('fullBtn').click();
+    if (e.key.toLowerCase() === 'm') formatBtn.click();
+    if (e.key.toLowerCase() === 't') {
+      themeIndex = (themeIndex + 1) % themes.length;
+      document.body.dataset.theme = themes[themeIndex];
+      document.querySelectorAll('[data-theme-btn]').forEach((b,i)=>b.classList.toggle('active',i===themeIndex));
+    }
+  });
+
+  // Ambient starfield: lightweight, canvas-only, no dependencies.
+  const canvas = document.getElementById('space');
+  const ctx = canvas.getContext('2d');
+  let w=0,h=0,dpr=1,stars=[];
+  function resize(){
+    dpr=Math.min(2,window.devicePixelRatio||1);
+    w=window.innerWidth; h=window.innerHeight;
+    canvas.width=w*dpr; canvas.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+    const count=Math.min(150,Math.max(60,Math.floor(w*h/14000)));
+    stars=Array.from({length:count},()=>({x:Math.random()*w,y:Math.random()*h,z:.2+Math.random()*1.1,r:.35+Math.random()*1.25,p:Math.random()*Math.PI*2}));
+  }
+  function draw(t){
+    ctx.clearRect(0,0,w,h);
+    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#8b5cf6';
+    for(const star of stars){
+      star.y += .012 * star.z * (t%1000)/16;
+      if(star.y>h+5) star.y=-5;
+      const tw=.35+.25*Math.sin(star.p+t*.0018);
+      ctx.beginPath(); ctx.arc(star.x,star.y,star.r,0,Math.PI*2);
+      ctx.fillStyle=accent; ctx.globalAlpha=tw*star.z*.42; ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
