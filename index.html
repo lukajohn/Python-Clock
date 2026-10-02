@@ -95,6 +95,7 @@
     .binary-board{display:grid;grid-template-columns:repeat(6,minmax(46px,1fr));gap:12px;margin-top:24px}
     .digit-col{display:grid;gap:9px;justify-items:center}
     .digit-label{font:700 .65rem ui-monospace,monospace;color:var(--muted);letter-spacing:.16em}
+    .bit-wrap{display:grid;justify-items:center;gap:4px}
     .led{
       width:clamp(32px,4.7vw,50px);
       aspect-ratio:1;
@@ -242,8 +243,7 @@
       '<div class="digit-col" aria-label="' + label + ' digit">' +
         '<div class="digit-label">' + label + '</div>' +
         [8,4,2,1].map(bit =>
-          '<div class="led" data-col="' + col + '" data-bit="' + bit + '" title="bit ' + bit + '">' +
-          '</div><div class="bit-value">2^' + Math.log2(bit) + '</div>'
+          '<div class="bit-wrap"><div class="led" data-col="' + col + '" data-bit="' + bit + '" title="bit ' + bit + '"></div><div class="bit-value">2^' + Math.log2(bit) + '</div></div>'
         ).join('') +
       '</div>'
     ).join('');
