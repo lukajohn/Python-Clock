@@ -24,8 +24,6 @@ A flashy, dependency-free binary clock built with plain HTML, CSS and JavaScript
 
 The repository includes a GitHub Actions workflow using GitHub's official Pages deployment actions.
 
-For a project repository owned by `lukajohn`, the normal project-site address is:
-
-`https://lukajohn.github.io/Python-Clock/`
+Live site: `https://lukajohn.github.io/Python-Clock/`
 
 A true `clockexperiment.github.io` user/organization site requires a GitHub account or organization named **clockexperiment** and a repository named **clockexperiment.github.io**.
